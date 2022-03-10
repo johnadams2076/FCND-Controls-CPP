@@ -19,6 +19,8 @@ public:
 
   VehicleCommand GenerateMotorCommands(float collThrustCmd, V3F momentCmd);
 
+  VehicleCommand GenerateMotorCommands_1(float collThrustCmd, V3F momentCmd);
+
   // returns desired yaw rate
   float YawControl(float yawCmd, float yaw);
 
@@ -48,4 +50,6 @@ public:
 
   // integral control
   float integratedAltitudeError;
+
+  const float CONST_GRAVITY = 9.81; // gravity in [m/s^2]
 };
