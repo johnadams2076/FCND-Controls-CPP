@@ -19,8 +19,6 @@ public:
 
   VehicleCommand GenerateMotorCommands(float collThrustCmd, V3F momentCmd);
 
-  VehicleCommand GenerateMotorCommands_1(float collThrustCmd, V3F momentCmd);
-
   // returns desired yaw rate
   float YawControl(float yawCmd, float yaw);
 

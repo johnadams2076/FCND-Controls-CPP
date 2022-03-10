@@ -8,9 +8,11 @@
 #include "BaseController.h"
 #include "Math/Mat3x3F.h"
 
+
 #ifdef __PX4_NUTTX
 #include <systemlib/param/param.h>
 #endif
+
 
 void QuadControl::Init()
 {
@@ -53,45 +55,28 @@ void QuadControl::Init()
 #endif
 }
 
-VehicleCommand QuadControl::GenerateMotorCommands_1(float collThrustCmd, V3F momentCmd)
-{
-  // Convert a desired 3-axis moment and collective thrust command to 
-  //   individual motor thrust commands
-  // INPUTS: 
-  //   collThrustCmd: desired collective thrust [N]
-  //   momentCmd: desired rotation moment about each axis [N m]
-  // OUTPUT:
-  //   set class member variable cmd (class variable for graphing) where
-  //   cmd.desiredThrustsN[0..3]: motor commands, in [N]
-
-  // HINTS: 
-  // - you can access parts of momentCmd via e.g. momentCmd.x
-  // You'll need the arm length parameter L, and the drag/thrust ratio kappa
-
-  ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-  float l = L / sqrt(2.f); 
-
-  float thrust = 0;
-  thrust = (mass * 9.81f / 4.f) ;
-  cmd.desiredThrustsN[0] = thrust + 1 ; // front left
-  cmd.desiredThrustsN[1] = thrust  ; // front right
-  cmd.desiredThrustsN[2] = thrust  ; // rear left
-  cmd.desiredThrustsN[3] = thrust + 4 ; // rear right
-
-  /////////////////////////////// END STUDENT CODE ////////////////////////////
-
-  return cmd;
-}
 
 VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momentCmd)
 {
-	float l = L / sqrt(2.f);
-	float thrust = (mass * 9.81f / 4.f);
-	cmd.desiredThrustsN[0] = thrust; // front left
-	cmd.desiredThrustsN[1] = thrust; // front right
-	cmd.desiredThrustsN[2] = thrust; // rear left
-	cmd.desiredThrustsN[3] = thrust; // rear right
 
+	////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
+	float l = L / sqrtf(2.f);
+	float pBar = momentCmd.x / l;
+	float qBar = momentCmd.y / l;
+	float rBar = -momentCmd.z / kappa;
+	float cBar = collThrustCmd;
+	float f1 = (pBar + qBar + rBar + cBar) / 4.f;  // Front left F1
+	float f2 = (-pBar + qBar - rBar + cBar) / 4.f; // Front right F2
+	float f3 = (pBar - qBar - rBar + cBar) / 4.f;  // Rear left F3
+	float f4 = (-pBar - qBar + rBar + cBar) / 4.f; // Rear right F4
+
+	// reserve some thrust margin
+	float thrustMargin = .1f * (maxMotorThrust - minMotorThrust);
+	cmd.desiredThrustsN[0] = CONSTRAIN(f1, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
+	cmd.desiredThrustsN[1] = CONSTRAIN(f2, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
+	cmd.desiredThrustsN[2] = CONSTRAIN(f3, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
+	cmd.desiredThrustsN[3] = CONSTRAIN(f4, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
+	/////////////////////////////// END STUDENT CODE ////////////////////////////
 	return cmd;
 }
 V3F QuadControl::BodyRateControl(V3F pqrCmd, V3F pqr)
