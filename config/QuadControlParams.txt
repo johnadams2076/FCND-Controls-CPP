@@ -40,7 +40,7 @@ kpVelZ = 8
 #kpBank = 5
 #kpYaw = 1
 
-kpBank = 10
+kpBank = 12.5
 kpYaw = 3
 
 # Angle rate gains
