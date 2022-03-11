@@ -2,7 +2,7 @@
 # this is a comment. [X] is a namespace. [X:Y] initializes X from Y
 # Namespace and parameter names are not case-sensitive
 # X=Y sets X to Y. Y may be a string, float, or list of 3 floats
-############################################################################
+##############QuadControlParams##############################################################
 
 [QuadControlParams] 
 
@@ -10,7 +10,6 @@ UseIdealEstimator=1
 
 # Physical properties
 #Mass = 0.4
-
 Mass = 0.4
 
 L = 0.17
@@ -26,28 +25,28 @@ maxMotorThrust = 4.5
 #kpPosZ = 1
 #KiPosZ = 20
 
-kpPosXY = 1
-kpPosZ = 1
-KiPosZ = 20
+kpPosXY = 30
+kpPosZ = 20
+KiPosZ = 40
 
 # Velocity control gains
-#kpVelXY = 4
+#kpVelXY = 2
 #kpVelZ = 4
 
-kpVelXY = 2
-kpVelZ = 4
+kpVelXY = 11.5
+kpVelZ = 8
 
 # Angle control gains
 #kpBank = 5
 #kpYaw = 1
 
-kpBank = 5
-kpYaw = 0.001
+kpBank = 10
+kpYaw = 3
 
 # Angle rate gains
 #kpPQR = 23, 23, 5
 
-kpPQR = 35, 23, 5
+kpPQR = 43, 55, 55
 
 # limits
 maxAscentRate = 5
@@ -55,3 +54,6 @@ maxDescentRate = 2
 maxSpeedXY = 5
 maxHorizAccel = 12
 maxTiltAngle = .7
+
+#Custom designer params
+altThrust = 2*4

@@ -12,6 +12,7 @@
 #ifdef __PX4_NUTTX
 #include <systemlib/param/param.h>
 #endif
+#include <iostream>
 
 
 void QuadControl::Init()
@@ -47,6 +48,8 @@ void QuadControl::Init()
 
   minMotorThrust = config->Get(_config + ".minMotorThrust", 0);
   maxMotorThrust = config->Get(_config + ".maxMotorThrust", 100);
+
+  altThrust = config->Get(_config + ".altThrust", 0.1);
 #else
   // load params from PX4 parameter system
   //TODO
@@ -60,7 +63,9 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
 {
 
 	////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-	float l = L / sqrtf(2.f);
+	//collThrustCmd = altThrust;
+	
+	float l = L / (2*sqrtf(2.f));
 	float pBar = momentCmd.x / l;
 	float qBar = momentCmd.y / l;
 	float rBar = -momentCmd.z / kappa;
@@ -69,13 +74,16 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
 	float f2 = (-pBar + qBar - rBar + cBar) / 4.f; // Front right F2
 	float f3 = (pBar - qBar - rBar + cBar) / 4.f;  // Rear left F3
 	float f4 = (-pBar - qBar + rBar + cBar) / 4.f; // Rear right F4
+	
+	//cmd.desiredThrustsN[0] = CONSTRAIN(f1, minMotorThrust , maxMotorThrust ); 
+	//cmd.desiredThrustsN[1] = CONSTRAIN(f2, minMotorThrust, maxMotorThrust ); 
+	//cmd.desiredThrustsN[2] = CONSTRAIN(f3, minMotorThrust , maxMotorThrust ); 
+	//cmd.desiredThrustsN[3] = CONSTRAIN(f4, minMotorThrust , maxMotorThrust ); 
 
-	// reserve some thrust margin
-	float thrustMargin = .1f * (maxMotorThrust - minMotorThrust);
-	cmd.desiredThrustsN[0] = CONSTRAIN(f1, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
-	cmd.desiredThrustsN[1] = CONSTRAIN(f2, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
-	cmd.desiredThrustsN[2] = CONSTRAIN(f3, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
-	cmd.desiredThrustsN[3] = CONSTRAIN(f4, minMotorThrust + thrustMargin, maxMotorThrust - thrustMargin); 
+	cmd.desiredThrustsN[0] = f1;
+	cmd.desiredThrustsN[1] = f2;
+	cmd.desiredThrustsN[2] = f3;
+	cmd.desiredThrustsN[3] = f4;
 	/////////////////////////////// END STUDENT CODE ////////////////////////////
 	return cmd;
 }
@@ -129,7 +137,7 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
   Mat3x3F R = attitude.RotationMatrix_IwrtB();
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-
+ 
   float r11 = R(0, 0);
   float r12 = R(0, 1);
   float r13 = R(0, 2);
@@ -150,17 +158,27 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
 
   Mat3x3F rMulMatrix = Mat3x3F(v);
   float cAccel = collThrustCmd / mass;
-  V3F bActual = V3F(r13, r23, 0.f);
-  float bXCommanded = accelCmd.x / -cAccel;
-  float bYCommanded = accelCmd.y / -cAccel;
 
-  V3F bCommanded = V3F(bXCommanded, bYCommanded, 0.f);
-  bCommanded.constrain(-maxTiltAngle, maxTiltAngle);
+  if (collThrustCmd > 0.0)
+  {
+	  V3F bActual = V3F(r13, r23, 0.f);
+	  float bXCommanded = accelCmd.x / -cAccel;
+	  float bYCommanded = accelCmd.y / -cAccel;
+	  
+	  V3F bCommanded = V3F(bXCommanded, bYCommanded, 0.f);
+	  bCommanded.constrain(-maxTiltAngle, maxTiltAngle);
 
-  V3F bError = bCommanded - bActual;
-  V3F bCommandedDot = kpBank * bError;
+	  V3F bError = bCommanded - bActual;
+	  V3F bCommandedDot = kpBank * bError;
 
-  pqrCmd = (1 / r33) * (rMulMatrix * bCommandedDot);
+	  pqrCmd = (1 / r33) * (rMulMatrix * bCommandedDot);
+  }
+  else
+  {
+	  // "negative thrust command"
+	  pqrCmd = 0.0;
+	  collThrustCmd = 0.0;
+  }
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
@@ -191,27 +209,27 @@ float QuadControl::AltitudeControl(float posZCmd, float velZCmd, float posZ, flo
   float thrust = 0;
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-
+  //return altThrust;
   float posZError = posZCmd - posZ;
-  float proportionalTerm = kpPosZ * posZError;
-
+  float hDotCommand = kpPosZ * posZError + velZCmd;
+  hDotCommand = CONSTRAIN(hDotCommand, -maxDescentRate, maxAscentRate);
 
   integratedAltitudeError += posZError * dt;
 
-  velZCmd = CONSTRAIN(velZCmd, -maxAscentRate, maxDescentRate);
-  float posZDotError = velZCmd - velZ;
+  float posZDotError = hDotCommand - velZ;
   float derivativeTerm = kpVelZ * posZDotError;
 
   float integralTerm = KiPosZ * integratedAltitudeError;
 
-  float uOneBar = proportionalTerm + derivativeTerm + integralTerm + accelZCmd;
+  float uOneBar = derivativeTerm + integralTerm + accelZCmd;
 	
   float bZActual = R(2, 2);
 
   float cAccel = (uOneBar - CONST_GRAVITY) / bZActual;
   thrust = mass * cAccel;
-
-
+  // reserve some thrust margin
+  //float thrustMargin = .1f * (maxMotorThrust - minMotorThrust);
+  //thrust = CONSTRAIN(thrust, (minMotorThrust + thrustMargin) *4.f, (maxMotorThrust - thrustMargin) * 4.f);
 
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
@@ -249,6 +267,7 @@ V3F QuadControl::LateralPositionControl(V3F posCmd, V3F velCmd, V3F pos, V3F vel
   V3F accelCmd = accelCmdFF;
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
+  
 
   V3F posError = posCmd - pos;
   V3F proportionalTerm = posError.operator*(kpPosXY);
@@ -257,7 +276,7 @@ V3F QuadControl::LateralPositionControl(V3F posCmd, V3F velCmd, V3F pos, V3F vel
   V3F velDotError = velCmd - vel;
   V3F derivativeTerm = kpVelXY * velDotError;
   accelCmd += proportionalTerm + derivativeTerm;
-  accelCmd.constrain(-maxAccelXY, maxAccelXY); 
+  //accelCmd.constrain(-maxAccelXY, maxAccelXY); 
   
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
@@ -280,11 +299,16 @@ float QuadControl::YawControl(float yawCmd, float yaw)
 
   float yawRateCmd=0;
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-
-
+  // Ensure the target is within range of 0 to 2 * pi
   yawCmd = fmodf(yawCmd, 2. * F_PI);
-  yaw = fmodf(yaw, 2. * F_PI);
+
   float posError = yawCmd - yaw;
+  if (posError > F_PI) {
+	  posError = posError - 2.0 * F_PI;
+  }
+  else if(posError < -F_PI) {
+	  posError = posError + 2.0 * F_PI;
+  }
   float proportionalTerm = kpYaw * posError;
   yawRateCmd = proportionalTerm;
   /////////////////////////////// END STUDENT CODE ////////////////////////////
