@@ -48,8 +48,6 @@ void QuadControl::Init()
 
   minMotorThrust = config->Get(_config + ".minMotorThrust", 0);
   maxMotorThrust = config->Get(_config + ".maxMotorThrust", 100);
-
-  altThrust = config->Get(_config + ".altThrust", 0.1);
 #else
   // load params from PX4 parameter system
   //TODO
@@ -63,27 +61,29 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
 {
 
 	////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-	//collThrustCmd = altThrust;
+
 	
-	float l = L / (2*sqrtf(2.f));
+	//Perpendicular distance from x-axis to the motor.  
+	float l = L / (sqrtf(2.f));
+	//Forces along each axis.
 	float pBar = momentCmd.x / l;
 	float qBar = momentCmd.y / l;
 	float rBar = -momentCmd.z / kappa;
+
+	//Total thrust commanded.
 	float cBar = collThrustCmd;
+
+	//Magical equation to find individual motor thrusts. 
+	//F1 and F4 rotate clockwise. F2 and F3 rotate counter-clockwise. 
 	float f1 = (pBar + qBar + rBar + cBar) / 4.f;  // Front left F1
 	float f2 = (-pBar + qBar - rBar + cBar) / 4.f; // Front right F2
 	float f3 = (pBar - qBar - rBar + cBar) / 4.f;  // Rear left F3
 	float f4 = (-pBar - qBar + rBar + cBar) / 4.f; // Rear right F4
 	
-	//cmd.desiredThrustsN[0] = CONSTRAIN(f1, minMotorThrust , maxMotorThrust ); 
-	//cmd.desiredThrustsN[1] = CONSTRAIN(f2, minMotorThrust, maxMotorThrust ); 
-	//cmd.desiredThrustsN[2] = CONSTRAIN(f3, minMotorThrust , maxMotorThrust ); 
-	//cmd.desiredThrustsN[3] = CONSTRAIN(f4, minMotorThrust , maxMotorThrust ); 
-
-	cmd.desiredThrustsN[0] = f1;
-	cmd.desiredThrustsN[1] = f2;
-	cmd.desiredThrustsN[2] = f3;
-	cmd.desiredThrustsN[3] = f4;
+	cmd.desiredThrustsN[0] = CONSTRAIN(f1, minMotorThrust , maxMotorThrust ); 
+	cmd.desiredThrustsN[1] = CONSTRAIN(f2, minMotorThrust, maxMotorThrust ); 
+	cmd.desiredThrustsN[2] = CONSTRAIN(f3, minMotorThrust , maxMotorThrust ); 
+	cmd.desiredThrustsN[3] = CONSTRAIN(f4, minMotorThrust , maxMotorThrust ); 
 	/////////////////////////////// END STUDENT CODE ////////////////////////////
 	return cmd;
 }
@@ -106,6 +106,7 @@ V3F QuadControl::BodyRateControl(V3F pqrCmd, V3F pqr)
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
   V3F momentsOfInertia = V3F(Ixx, Iyy, Izz);
+  //Capture error between desired and estimated bodyrates.
   V3F pqr_err = pqrCmd - pqr;
   momentCmd = momentsOfInertia * kpPQR * (pqr_err);
 
@@ -145,6 +146,7 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
   float r22 = R(1, 1);
   float r23 = R(1, 2);
   float r33 = R(2, 2);
+  //Matrix helper for solving eqation
   float v[9];
    v[0] = r21;
    v[1] = -r11;
@@ -161,16 +163,20 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
 
   if (collThrustCmd > 0.0)
   {
+
 	  V3F bActual = V3F(r13, r23, 0.f);
+	  //Get commanded XY bank positional values
 	  float bXCommanded = accelCmd.x / -cAccel;
 	  float bYCommanded = accelCmd.y / -cAccel;
 	  
 	  V3F bCommanded = V3F(bXCommanded, bYCommanded, 0.f);
 	  bCommanded.constrain(-maxTiltAngle, maxTiltAngle);
-
+	  // Error between commanded and actual XY bank positional values
 	  V3F bError = bCommanded - bActual;
+	  //Roll and Pitch in world/global frame. 
 	  V3F bCommandedDot = kpBank * bError;
 
+	  //Roll and Pitch rates of the vehicle in body frame.
 	  pqrCmd = (1 / r33) * (rMulMatrix * bCommandedDot);
   }
   else
@@ -209,27 +215,29 @@ float QuadControl::AltitudeControl(float posZCmd, float velZCmd, float posZ, flo
   float thrust = 0;
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
-  //return altThrust;
+
+  //Proportional Term. Error in commanded vs actual position is captured. 
   float posZError = posZCmd - posZ;
-  float hDotCommand = kpPosZ * posZError + velZCmd;
-  hDotCommand = CONSTRAIN(hDotCommand, -maxDescentRate, maxAscentRate);
+  float proportionalTerm = kpPosZ * posZError;
 
-  integratedAltitudeError += posZError * dt;
-
-  float posZDotError = hDotCommand - velZ;
+  //Restrict commanded velocity to the range {-maxDescentRate - maxAscentRate}
+  velZCmd = CONSTRAIN(velZCmd, -maxDescentRate, maxAscentRate);
+  //Derivative term. Capture error in target and actual velocity.
+  float posZDotError = velZCmd - velZ;
   float derivativeTerm = kpVelZ * posZDotError;
 
+  //Integral term. Cummulative positional error over time.
+  integratedAltitudeError += posZError * dt;
   float integralTerm = KiPosZ * integratedAltitudeError;
 
-  float uOneBar = derivativeTerm + integralTerm + accelZCmd;
-	
+  //Second order derivative of Position Z, akin to acceleration.
+  float uBarOne = proportionalTerm + derivativeTerm + integralTerm + accelZCmd;
+
   float bZActual = R(2, 2);
 
-  float cAccel = (uOneBar - CONST_GRAVITY) / bZActual;
-  thrust = mass * cAccel;
-  // reserve some thrust margin
-  //float thrustMargin = .1f * (maxMotorThrust - minMotorThrust);
-  //thrust = CONSTRAIN(thrust, (minMotorThrust + thrustMargin) *4.f, (maxMotorThrust - thrustMargin) * 4.f);
+  float cAccel = (CONST_GRAVITY - uBarOne) / bZActual;
+  thrust = (mass * cAccel);
+  thrust = CONSTRAIN(thrust, (minMotorThrust ) *4.f, (maxMotorThrust) * 4.f);
 
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
@@ -268,15 +276,20 @@ V3F QuadControl::LateralPositionControl(V3F posCmd, V3F velCmd, V3F pos, V3F vel
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
   
-
+  //Proportional term. Error in target vs desired XY positions.
   V3F posError = posCmd - pos;
   V3F proportionalTerm = posError.operator*(kpPosXY);
 
+  //Constrain lateral velocity to the given range.
   velCmd.constrain(-maxSpeedXY, maxSpeedXY);
+
+  //Derivative term. Target vs desired lateral velocity.
   V3F velDotError = velCmd - vel;
   V3F derivativeTerm = kpVelXY * velDotError;
+
+  // Adds feedforward acceleration.
   accelCmd += proportionalTerm + derivativeTerm;
-  //accelCmd.constrain(-maxAccelXY, maxAccelXY); 
+  accelCmd.constrain(-maxAccelXY, maxAccelXY); 
   
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
@@ -302,6 +315,7 @@ float QuadControl::YawControl(float yawCmd, float yaw)
   // Ensure the target is within range of 0 to 2 * pi
   yawCmd = fmodf(yawCmd, 2. * F_PI);
 
+  //Proportional term. 
   float posError = yawCmd - yaw;
   if (posError > F_PI) {
 	  posError = posError - 2.0 * F_PI;

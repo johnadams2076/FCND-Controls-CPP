@@ -10,7 +10,7 @@ UseIdealEstimator=1
 
 # Physical properties
 #Mass = 0.4
-Mass = 0.4
+Mass = 0.5
 
 L = 0.17
 Ixx = 0.0023
@@ -27,7 +27,7 @@ maxMotorThrust = 4.5
 
 kpPosXY = 30
 kpPosZ = 20
-KiPosZ = 40
+KiPosZ = 30
 
 # Velocity control gains
 #kpVelXY = 2
@@ -46,7 +46,7 @@ kpYaw = 3
 # Angle rate gains
 #kpPQR = 23, 23, 5
 
-kpPQR = 43, 55, 55
+kpPQR = 43, 55, 6
 
 # limits
 maxAscentRate = 5
@@ -55,5 +55,3 @@ maxSpeedXY = 5
 maxHorizAccel = 12
 maxTiltAngle = .7
 
-#Custom designer params
-altThrust = 2*4
