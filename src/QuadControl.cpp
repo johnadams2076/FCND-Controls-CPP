@@ -74,7 +74,8 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
 	float cBar = collThrustCmd;
 
 	//Magical equation to find individual motor thrusts. 
-	//F1 and F4 rotate clockwise. F2 and F3 rotate counter-clockwise. 
+	//Motors producing thrust F1 and F4, physically rotate clockwise. 
+	//F2 and F3 rotate counter-clockwise. 
 	float f1 = (pBar + qBar + rBar + cBar) / 4.f;  // Front left F1
 	float f2 = (-pBar + qBar - rBar + cBar) / 4.f; // Front right F2
 	float f3 = (pBar - qBar - rBar + cBar) / 4.f;  // Rear left F3
@@ -146,7 +147,7 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
   float r22 = R(1, 1);
   float r23 = R(1, 2);
   float r33 = R(2, 2);
-  //Matrix helper for solving eqation
+  //Matrix helper for solving equation
   float v[9];
    v[0] = r21;
    v[1] = -r11;
