@@ -3,12 +3,12 @@
 
 #include "Utility/StringUtils.h"
 #include "Trajectory.h"
-#include "BaseController.h"
+
 
 class QuadControl : public BaseController
 {
 public:
-  QuadControl(string config) : BaseController(config) { Init(); };
+  QuadControl(string name, string config) : BaseController(name, config) { Init(); };
 
   virtual void Init();
 
